@@ -1,6 +1,19 @@
-﻿// See https://aka.ms/new-console-template for more information
+﻿// Copyright 2026 Adam Brousseau
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+// documentation files (the “Software”), to deal in the Software without restriction, including without limitation the
+// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+// WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+// OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT
+// OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 using System.Collections.Concurrent;
+using System.Globalization;
 using Serilog;
 using Serilog.Events;
 using SixLabors.ImageSharp;
@@ -12,9 +25,9 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.Console(restrictedToMinimumLevel: LogEventLevel.Information)
     .CreateLogger();
 
-imgDictionary.TryAdd(UnknownFormat, new List<string>());
-imgDictionary.TryAdd(UnknownContent, new List<string>());
-imgDictionary.TryAdd(Unreadable, new List<string>());
+_imgDictionary.TryAdd(UnknownFormat, []);
+_imgDictionary.TryAdd(UnknownContent, []);
+_imgDictionary.TryAdd(Unreadable, []);
 
 var imgDirectory = new DirectoryInfo(@"my path");
 
@@ -24,7 +37,7 @@ CopyImages(new DirectoryInfo(@"path to organized files"));
 
 internal partial class Program
 {
-    private static ConcurrentDictionary<string, List<string>> imgDictionary = new();
+    private static ConcurrentDictionary<string, List<string>> _imgDictionary = new();
 
     private const string UnknownContent = "UnknownContent";
     private const string UnknownFormat = "UnknownFormat";
@@ -32,10 +45,9 @@ internal partial class Program
 
     private static void CopyImages(DirectoryInfo copyImgDirectory)
     {
-        foreach (var currentKeyValue in imgDictionary)
+        foreach (var currentKeyValue in _imgDictionary)
         {
-            if (currentKeyValue.Key == Unreadable || currentKeyValue.Key == UnknownContent ||
-                currentKeyValue.Key == UnknownFormat) continue;
+            if (currentKeyValue.Key is Unreadable or UnknownContent or UnknownFormat) continue;
             
             var baseCopyPath = Path.Join(copyImgDirectory.FullName, currentKeyValue.Key);
             
@@ -76,8 +88,8 @@ internal partial class Program
 
                         if (dateTimeMetadata?.GetValue() != null)
                         {
-                            Log.Information($"{currentFileInfo.FullName} : {dateTimeMetadata.GetValue()}");
-                            _ = DateTime.TryParse(dateTimeMetadata.GetValue().ToString(), out dt);
+                            Log.Information("{ObjFullName} : {GetValue}", currentFileInfo.FullName, dateTimeMetadata.GetValue());
+                            _ = DateTime.TryParse(dateTimeMetadata.GetValue()?.ToString(), CultureInfo.InvariantCulture, out dt);
 
                             if (dt == DateTime.MinValue)
                             {
@@ -103,13 +115,13 @@ internal partial class Program
 
                         var keyFormat = $"{dt.Year}_{dt.Month}";
 
-                        if (imgDictionary.Keys.Contains(keyFormat))
+                        if (_imgDictionary.Keys.Contains(keyFormat))
                         {
-                            imgDictionary.GetValueOrDefault(keyFormat)?.Add(currentFileInfo.FullName);
+                            _imgDictionary.GetValueOrDefault(keyFormat)?.Add(currentFileInfo.FullName);
                         }
                         else
                         {
-                            imgDictionary.TryAdd(keyFormat, new List<string> { currentFileInfo.FullName });
+                            _imgDictionary.TryAdd(keyFormat, [currentFileInfo.FullName]);
                         }
                     }
                     else
@@ -122,41 +134,41 @@ internal partial class Program
 
                         var keyFormat = $"{dt.Year}_{dt.Month}";
 
-                        if (imgDictionary.Keys.Contains(keyFormat))
+                        if (_imgDictionary.Keys.Contains(keyFormat))
                         {
-                            imgDictionary.GetValueOrDefault(keyFormat)?.Add(currentFileInfo.FullName);
+                            _imgDictionary.GetValueOrDefault(keyFormat)?.Add(currentFileInfo.FullName);
                         }
                         else
                         {
-                            imgDictionary.TryAdd(keyFormat, new List<string> { currentFileInfo.FullName });
+                            _imgDictionary.TryAdd(keyFormat, [currentFileInfo.FullName]);
                         }
                     }
                 }
                 catch (UnknownImageFormatException unknownImageFormatException)
                 {
-                    Log.Error($"Unknown format for: ${currentFileInfo.FullName}");
+                    Log.Error("Unknown format for: ${ObjFullName}", currentFileInfo.FullName);
 
-                    imgDictionary.GetValueOrDefault(UnknownFormat)?.Add(currentFileInfo.FullName);
+                    _imgDictionary.GetValueOrDefault(UnknownFormat)?.Add(currentFileInfo.FullName);
 
                 }
                 catch (InvalidImageContentException invalidImageContentException)
                 {
                     Log.Error(
-                        $"Image is not in standard format and is unparsable: ${currentFileInfo.FullName}");
+                        "Image is not in standard format and is unparsable: ${ObjFullName}", currentFileInfo.FullName);
 
-                    imgDictionary.GetValueOrDefault(UnknownContent)?.Add(currentFileInfo.FullName);
+                    _imgDictionary.GetValueOrDefault(UnknownContent)?.Add(currentFileInfo.FullName);
                 }
                 catch (IOException ioException)
                 {
-                    Log.Error($"Image is not readable (possibly corrupted): ${currentFileInfo.FullName}");
+                    Log.Error("Image is not readable (possibly corrupted): ${ObjFullName}", currentFileInfo.FullName);
 
-                    imgDictionary.GetValueOrDefault(Unreadable)?.Add(currentFileInfo.FullName);
+                    _imgDictionary.GetValueOrDefault(Unreadable)?.Add(currentFileInfo.FullName);
                 }
                 catch (NullReferenceException nullReferenceException)
                 {
-                    Log.Error($"Image is not readable (possibly corrupted): ${currentFileInfo.FullName}");
+                    Log.Error("Image is not readable (possibly corrupted): ${ObjFullName}", currentFileInfo.FullName);
 
-                    imgDictionary.GetValueOrDefault(Unreadable)?.Add(currentFileInfo.FullName);
+                    _imgDictionary.GetValueOrDefault(Unreadable)?.Add(currentFileInfo.FullName);
                 }
             }
         });
